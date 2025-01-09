@@ -1,0 +1,62 @@
+# Archivos de byte-compilados / optimizados / DLL
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribución / empaquetado
+dist/
+build/
+*.egg-info/
+*.egg
+
+# Entornos virtuales
+venv/
+env/
+.env/
+.venv/
+ENV/
+
+# IDEs y editores
+.idea/
+.vscode/
+*.swp
+*.swo
+.project
+.pydevproject
+.settings/
+
+# Archivos de pruebas y cobertura
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+nosetests.xml
+coverage.xml
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Documentación
+docs/_build/
+
+# Logs y bases de datos
+*.log
+*.sqlite3
+*.db
+
+# Archivos del sistema operativo
+.DS_Store
+Thumbs.db
+
+# Archivos locales de configuración
+.env
+.env.local
+*.conf
+
+# Dependencias locales
+lib/
+lib64/
+
+# Archivos temporales
+tmp/
+temp/
