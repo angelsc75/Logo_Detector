@@ -60,3 +60,30 @@ lib64/
 # Archivos temporales
 tmp/
 temp/
+# Dataset
+dataset/
+*.jpg
+*.jpeg
+*.png
+*.txt
+!requirements.txt
+*.pt
+*.pth
+*.weights
+*.h5
+
+# Directorios de modelos y checkpoints
+models/
+weights/
+runs/
+*.onnx
+
+# Archivos temporales de entrenamiento
+*.cache
+events.out.tfevents.*
+*.log
+
+# Archivos de resultados
+results.txt
+results.csv
+results/
