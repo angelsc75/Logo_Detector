@@ -21,7 +21,7 @@ class ManualLabeler:
         self.original_image = None
         self.current_brand = None
         self.window_name = 'Manual Labeler'
-        
+    
     def mouse_callback(self, event, x, y, flags, param):
         if event == cv2.EVENT_LBUTTONDOWN:
             self.drawing = True
@@ -39,37 +39,84 @@ class ManualLabeler:
             y1, y2 = min(self.iy, y), max(self.iy, y)
             self.current_bbox = [x1, y1, x2, y2]
             cv2.rectangle(self.image, (x1, y1), (x2, y2), (0, 255, 0), 2)
-    
+
     def create_xml_annotation(self, image_path, bbox):
+        """Crea un archivo XML con el mismo formato que Logos in the Wild"""
         height, width = self.original_image.shape[:2]
         
+        # Crear el elemento raíz annotation
         annotation = ET.Element('annotation')
+        
+        # Añadir folder
         folder = ET.SubElement(annotation, 'folder')
         folder.text = str(self.images_dir.name)
         
+        # Añadir filename
         filename = ET.SubElement(annotation, 'filename')
         filename.text = str(image_path.name)
         
+        # Añadir path
+        path = ET.SubElement(annotation, 'path')
+        path.text = str(image_path)
+        
+        # Añadir source
+        source = ET.SubElement(annotation, 'source')
+        database = ET.SubElement(source, 'database')
+        database.text = 'Unknown'
+        
+        # Añadir size
         size = ET.SubElement(annotation, 'size')
-        ET.SubElement(size, 'width').text = str(width)
-        ET.SubElement(size, 'height').text = str(height)
-        ET.SubElement(size, 'depth').text = '3'
+        width_elem = ET.SubElement(size, 'width')
+        width_elem.text = str(width)
+        height_elem = ET.SubElement(size, 'height')
+        height_elem.text = str(height)
+        depth_elem = ET.SubElement(size, 'depth')
+        depth_elem.text = '3'
         
+        # Añadir segmented
+        segmented = ET.SubElement(annotation, 'segmented')
+        segmented.text = '0'
+        
+        # Añadir object
         obj = ET.SubElement(annotation, 'object')
-        ET.SubElement(obj, 'name').text = self.current_brand
-        ET.SubElement(obj, 'pose').text = 'Unspecified'
-        ET.SubElement(obj, 'truncated').text = '0'
-        ET.SubElement(obj, 'difficult').text = '0'
         
+        # Nombre del objeto (marca)
+        name = ET.SubElement(obj, 'name')
+        name.text = self.current_brand
+        
+        # Pose
+        pose = ET.SubElement(obj, 'pose')
+        pose.text = 'Unspecified'
+        
+        # Truncated
+        truncated = ET.SubElement(obj, 'truncated')
+        truncated.text = '0'
+        
+        # Difficult
+        difficult = ET.SubElement(obj, 'difficult')
+        difficult.text = '0'
+        
+        # Bounding box
         bndbox = ET.SubElement(obj, 'bndbox')
-        ET.SubElement(bndbox, 'xmin').text = str(bbox[0])
-        ET.SubElement(bndbox, 'ymin').text = str(bbox[1])
-        ET.SubElement(bndbox, 'xmax').text = str(bbox[2])
-        ET.SubElement(bndbox, 'ymax').text = str(bbox[3])
+        xmin = ET.SubElement(bndbox, 'xmin')
+        xmin.text = str(bbox[0])
+        ymin = ET.SubElement(bndbox, 'ymin')
+        ymin.text = str(bbox[1])
+        xmax = ET.SubElement(bndbox, 'xmax')
+        xmax.text = str(bbox[2])
+        ymax = ET.SubElement(bndbox, 'ymax')
+        ymax.text = str(bbox[3])
         
+        # Crear el árbol XML y guardarlo
         tree = ET.ElementTree(annotation)
         xml_path = self.annotations_dir / f"{image_path.stem}.xml"
-        tree.write(str(xml_path), encoding='utf-8', xml_declaration=True)
+        
+        # Escribir el archivo con la declaración XML y la codificación correcta
+        with open(xml_path, 'w', encoding='utf-8') as f:
+            f.write('<?xml version="1.0" encoding="UTF-8"?>\n')
+            tree.write(f, encoding='unicode', method='xml')
+        
+        print(f"Anotación guardada en: {xml_path}")
         
     def label_images(self):
         # Obtener lista de imágenes
@@ -92,17 +139,17 @@ class ManualLabeler:
         print("- Presionar 'n' para etiquetar como Nike")
         print("- Presionar 'r' para resetear el bounding box actual")
         print("- Presionar 'q' para salir")
-        print("- Presionar cualquier otra tecla para pasar a la siguiente imagen\n")
+        print("- Presionar cualquier otra tecla para pasar a la siguiente imagen sin etiquetar\n")
         
         for img_path in image_files:
-            print(f"Intentando abrir: {img_path}")
+            print(f"Abriendo: {img_path}")
             self.original_image = cv2.imread(str(img_path))
             
             if self.original_image is None:
                 print(f"No se pudo cargar la imagen: {img_path}")
                 continue
                 
-            print(f"Imagen cargada exitosamente: {img_path}")
+            print(f"Imagen cargada: {img_path}")
             self.image = self.original_image.copy()
             self.current_bbox = []
             
@@ -140,6 +187,17 @@ class ManualLabeler:
                         break
         
         cv2.destroyAllWindows()
+
+# Ejemplo de uso
+if __name__ == "__main__":
+    try:
+        # Asegúrate de poner aquí la ruta correcta a tu carpeta de imágenes
+        images_path = "dataset/images"
+        print(f"Iniciando etiquetador con directorio: {images_path}")
+        labeler = ManualLabeler(images_path)
+        labeler.label_images()
+    except Exception as e:
+        print(f"Error: {e}")
 
 # Ejemplo de uso
 if __name__ == "__main__":
