@@ -11,7 +11,7 @@ def organize_dataset(source_path, output_path, train_ratio=0.7, valid_ratio=0.2)
         os.makedirs(f"{output_path}/{split}/labels", exist_ok=True)
 
     # Marcas que nos interesan
-    target_brands = ['adidas', 'nike', 'reebok']
+    target_brands = ['adidas', 'puma', 'background']
     all_images = []
 
     # Recopilar todas las imágenes de las marcas objetivo
