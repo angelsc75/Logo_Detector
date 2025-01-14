@@ -133,8 +133,8 @@ names: ['adidas', 'puma']
 
 if __name__ == "__main__":
     # Rutas de entrada y salida
-    input_path = r"C:\Users\ang01\Desktop\CURSO F5\25 Proyecto de Computer Vision\brand_detection_Angel_Leire\dataset_ok"
-    output_path = r"C:\Users\ang01\Desktop\CURSO F5\25 Proyecto de Computer Vision\brand_detection_Angel_Leire\dataset_yolo"
+    input_path = r"C:\Users\ang01\Desktop\CURSO F5\25 Proyecto de Computer Vision\brand_detection_Angel_Leire\data\dataset_ok"
+    output_path = r"C:\Users\ang01\Desktop\CURSO F5\25 Proyecto de Computer Vision\brand_detection_Angel_Leire\data\dataset_yolo"
     
     # Procesar el dataset
     process_dataset(input_path, output_path)

@@ -1,1 +1,26 @@
+version: '3.8'
 
+services:
+  api:
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./models:/app/models
+      - ./database:/app/database
+    environment:
+      - MODEL_PATH=/app/models/weights/best.pt
+      - DATABASE_URL=sqlite:///app/database/detections.db
+
+  streamlit:
+    build:
+      context: .
+      dockerfile: docker/streamlit.Dockerfile
+    ports:
+      - "8501:8501"
+    environment:
+      - API_URL=http://api:8000
+    depends_on:
+      - api
