@@ -77,7 +77,7 @@ def organize_dataset(source_path, output_path, train_ratio=0.7, valid_ratio=0.2)
         print(f"Test {brand}: {len([x for x in all_images[valid_idx:] if x[2] == brand])}")
 
 # Rutas
-source_path = r"C:\Users\ang01\Desktop\CURSO F5\25 Proyecto de Computer Vision\data_cleaned\voc_format"
+source_path = r"C:\Users\ang01\Desktop\CURSO F5\25 Proyecto de Computer Vision\brand_detection_Angel_Leire\dataset_final"
 output_path = r"C:\Users\ang01\Desktop\CURSO F5\25 Proyecto de Computer Vision\brand_detection_Angel_Leire\dataset"
 
 # Ejecutar la organización del dataset
