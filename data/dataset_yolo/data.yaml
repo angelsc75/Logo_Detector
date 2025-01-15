@@ -1,7 +1,8 @@
-path: C:/Users/ang01/Desktop/CURSO F5/25 Proyecto de Computer Vision/brand_detection_Angel_Leire/data/dataset_yolo
-train: train/images
-val: valid/images
-test: test/images
+
+train: C:\Users\ang01\Desktop\CURSO F5\25 Proyecto de Computer Vision\brand_detection_Angel_Leire\data\dataset_yolo\train
+val: C:\Users\ang01\Desktop\CURSO F5\25 Proyecto de Computer Vision\brand_detection_Angel_Leire\data\dataset_yolo\val
+test: C:\Users\ang01\Desktop\CURSO F5\25 Proyecto de Computer Vision\brand_detection_Angel_Leire\data\dataset_yolo\test
 
 nc: 2
 names: ['adidas', 'puma']
+    
