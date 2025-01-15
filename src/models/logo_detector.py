@@ -121,7 +121,7 @@ class LogoDetector:
             print(f"Error durante el entrenamiento: {str(e)}")
 
     def process_video(self, video_path, conf_threshold=0.25):
-        """Procesa un video y devuelve estadísticas de detección"""
+        """Procesa un video y devuelve estadísticas de detección con visualización"""
         print(f"Procesando video: {video_path}")
         video_name = os.path.basename(video_path)
         
@@ -150,18 +150,30 @@ class LogoDetector:
                 results = self.model.predict(frame, conf=conf_threshold, verbose=False)[0]
                 
                 for box in results.boxes:
-                    cls = results.names[int(box.cls[0])]
-                    conf = float(box.conf[0])
-                    xyxy = box.xyxy[0].cpu().numpy()
-                    
+                    cls = results.names[int(box.cls[0])]  # Nombre de la clase detectada
+                    conf = float(box.conf[0])  # Confianza de la detección
+                    xyxy = box.xyxy[0].cpu().numpy()  # Coordenadas del bounding box
+
+                    # Guardar detecciones en la base de datos
                     c.execute('''INSERT INTO detections
                                 (video_name, frame_number, brand, confidence, bbox, timestamp)
                                 VALUES (?, ?, ?, ?, ?, ?)''',
-                             (video_name, frame_number, cls, conf, 
-                              json.dumps(xyxy.tolist()), timestamp))
+                            (video_name, frame_number, cls, conf, json.dumps(xyxy.tolist()), timestamp))
                     
                     detections_count[cls] += 1
                     frames_with_detections[cls] += 1
+
+                    # Dibujar el bounding box en el frame
+                    cv2.rectangle(frame, (int(xyxy[0]), int(xyxy[1])), (int(xyxy[2]), int(xyxy[3])), (0, 255, 0), 2)
+
+                    # Añadir el texto con el nombre de la clase y la confianza
+                    label = f"{cls} {conf:.2f}"
+                    cv2.putText(frame, label, (int(xyxy[0]), int(xyxy[1] - 10)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+                
+                # Mostrar el frame con detecciones
+                cv2.imshow("Detections", frame)
+                if cv2.waitKey(1) & 0xFF == ord('q'):
+                    break
                 
                 frame_number += 1
                 if frame_number % 100 == 0:
@@ -183,9 +195,7 @@ class LogoDetector:
             c.execute('''INSERT INTO video_analysis
                         (video_name, analysis_date, total_frames, duration_seconds, detection_summary)
                         VALUES (?, ?, ?, ?, ?)''',
-                     (video_name, datetime.now().isoformat(),
-                      total_frames, duration,
-                      json.dumps(stats)))
+                        (video_name, datetime.now().isoformat(), total_frames, duration, json.dumps(stats)))
             
             conn.commit()
             return stats
@@ -198,6 +208,8 @@ class LogoDetector:
                 cap.release()
             if 'conn' in locals():
                 conn.close()
+            cv2.destroyAllWindows()
+
                 
     def process_youtube_video(self, youtube_url):
         """Procesa un video de YouTube"""
