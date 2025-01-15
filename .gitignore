@@ -73,7 +73,7 @@ dataset/
 *.h5
 
 # Directorios de modelos y checkpoints
-models/
+
 weights/
 runs/
 *.onnx
