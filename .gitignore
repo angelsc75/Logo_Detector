@@ -87,3 +87,4 @@ events.out.tfevents.*
 results.txt
 results.csv
 results/
+/data/test_videos
