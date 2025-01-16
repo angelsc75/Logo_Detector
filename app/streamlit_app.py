@@ -89,11 +89,6 @@ def plot_brand_summary(stats):
 def main():
     st.title("Detector de Logos en Videos")
     
-    # Mostrar información de depuración en desarrollo
-    if st.sidebar.checkbox("Mostrar información de depuración"):
-        st.sidebar.write(f"Directorio actual: {os.getcwd()}")
-        st.sidebar.write(f"Python path: {sys.path}")
-    
     # Inicializar el detector
     try:
         detector = load_detector()
@@ -103,14 +98,19 @@ def main():
         return
     
     # Sidebar para configuración
-    st.sidebar.header("Configuración")
-    conf_threshold = st.sidebar.slider(
-        "Umbral de confianza",
-        min_value=0.0,
-        max_value=1.0,
-        value=0.5,
-        step=0.05
-    )
+    st.sidebar.header("Configuración de umbrales")
+    
+    # Umbrales de confianza por marca
+    conf_thresholds = {}
+    for brand in ['adidas', 'nike', 'puma']:
+        conf_thresholds[brand] = st.sidebar.slider(
+            f"Umbral de confianza para {brand.upper()}",
+            min_value=0.0,
+            max_value=1.0,
+            value=0.5,
+            step=0.05,
+            key=f"conf_{brand}"
+        )
     
     # Selector de entrada
     input_type = st.radio(
@@ -124,9 +124,14 @@ def main():
         
         if process_button and video_url:
             with st.spinner("Procesando video de YouTube..."):
-                stats = detector.process_youtube_video(video_url, conf_threshold)
+                stats = detector.process_youtube_video(video_url, conf_thresholds)
                 if stats:
                     st.success("¡Video procesado exitosamente!")
+                    
+                    # Mostrar umbrales utilizados
+                    st.subheader("Umbrales de confianza utilizados")
+                    for brand, threshold in stats['thresholds_used'].items():
+                        st.write(f"{brand.upper()}: {threshold:.2f}")
                     
                     # Mostrar gráficas
                     st.subheader("Análisis de detecciones")
@@ -158,7 +163,7 @@ def main():
             process_button = st.button("Procesar video")
             if process_button:
                 with st.spinner("Procesando video..."):
-                    stats = detector.process_video(video_path, conf_threshold)
+                    stats = detector.process_video(video_path, conf_thresholds)
                     if stats:
                         st.success("¡Video procesado exitosamente!")
                         

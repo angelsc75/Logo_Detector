@@ -130,11 +130,11 @@ class LogoDetector:
             if 'conn' in locals():
                 conn.close()
 
-    def process_video(self, video_path, conf_threshold=0.50):
+    def process_video(self, video_path, conf_thresholds={'adidas': 0.50, 'nike': 0.50, 'puma': 0.50}):
         """Procesa un video y devuelve estadísticas de detección con visualización"""
         print(f"Procesando video: {video_path}")
         video_name = os.path.basename(video_path)
-        
+
         try:
             cap = cv2.VideoCapture(video_path)
             if not cap.isOpened():
@@ -143,63 +143,72 @@ class LogoDetector:
             total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
             fps = cap.get(cv2.CAP_PROP_FPS)
             duration = total_frames / fps
-            
+
             detections_count = {'adidas': 0, 'puma': 0, 'nike': 0}
             frames_with_detections = {'adidas': 0, 'puma': 0, 'nike': 0}
-            
+
             conn = sqlite3.connect(self.db_path)
             c = conn.cursor()
-            
+
             frame_number = 0
             while cap.isOpened():
                 ret, frame = cap.read()
                 if not ret:
                     break
-                    
+
                 timestamp = frame_number / fps
-                results = self.model.predict(frame, conf=conf_threshold, verbose=False)[0]
-                
-                frame_has_detections = False
+
+                # Usar el valor mínimo de confianza como float para la predicción inicial
+                min_conf = float(min(conf_thresholds.values()))
+                results = self.model.predict(frame, conf=min_conf, verbose=False)[0]
+
+                frame_detections = {brand: False for brand in detections_count.keys()}
+
                 for box in results.boxes:
-                    frame_has_detections = True
                     cls = results.names[int(box.cls[0])]
                     conf = float(box.conf[0])
-                    xyxy = box.xyxy[0].cpu().numpy()
-                    
-                    try:
-                        # Guardar detecciones en la base de datos
-                        c.execute('''INSERT INTO detections
-                                    (video_name, frame_number, brand, confidence, bbox, timestamp)
-                                    VALUES (?, ?, ?, ?, ?, ?)''',
-                                (video_name, frame_number, cls, conf, json.dumps(xyxy.tolist()), timestamp))
-                        conn.commit()  # Commit después de cada inserción
-                        print(f"Detección guardada: Frame {frame_number}, Brand {cls}, Conf {conf}")
-                    except Exception as e:
-                        print(f"Error al guardar detección: {str(e)}")
-                        continue
-                    
-                    detections_count[cls] += 1
-                    frames_with_detections[cls] += 1
 
-                    # Dibujar el bounding box en el frame
-                    cv2.rectangle(frame, (int(xyxy[0]), int(xyxy[1])), (int(xyxy[2]), int(xyxy[3])), (0, 255, 0), 2)
+                    # Verificar el umbral específico de la marca después de la detección
+                    if cls in conf_thresholds and conf >= conf_thresholds[cls]:
+                        xyxy = box.xyxy[0].cpu().numpy()
 
-                    # Añadir el texto con el nombre de la clase y la confianza
-                    label = f"{cls} {conf:.2f}"
-                    cv2.putText(frame, label, (int(xyxy[0]), int(xyxy[1] - 10)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-                
+                        try:
+                            c.execute('''INSERT INTO detections
+                                        (video_name, frame_number, brand, confidence, bbox, timestamp)
+                                        VALUES (?, ?, ?, ?, ?, ?)''',
+                                    (video_name, frame_number, cls, conf, json.dumps(xyxy.tolist()), timestamp))
+                            conn.commit()
+                            print(f"Detección guardada: Frame {frame_number}, Brand {cls}, Conf {conf}")
+                        except Exception as e:
+                            print(f"Error al guardar detección: {str(e)}")
+                            continue
+
+                        detections_count[cls] += 1
+                        frame_detections[cls] = True
+
+                        # Dibujar el bounding box en el frame
+                        cv2.rectangle(frame, (int(xyxy[0]), int(xyxy[1])), (int(xyxy[2]), int(xyxy[3])), (0, 255, 0), 2)
+                        label = f"{cls} {conf:.2f}"
+                        cv2.putText(frame, label, (int(xyxy[0]), int(xyxy[1] - 10)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+
+                # Actualizar frames_with_detections para cada marca
+                for brand in frame_detections:
+                    if frame_detections[brand]:
+                        frames_with_detections[brand] += 1
+
                 # Mostrar el frame con detecciones
                 cv2.imshow("Detections", frame)
                 if cv2.waitKey(1) & 0xFF == ord('q'):
                     break
-                
+
                 frame_number += 1
                 if frame_number % 100 == 0:
                     print(f"Procesados {frame_number} frames...")
-            
+
             stats = {
                 'total_frames': total_frames,
                 'duration': duration,
+                'thresholds_used': conf_thresholds,
                 'detections': {
                     brand: {
                         'total_detections': count,
@@ -209,7 +218,7 @@ class LogoDetector:
                     for brand, count in detections_count.items()
                 }
             }
-            
+
             try:
                 c.execute('''INSERT INTO video_analysis
                             (video_name, analysis_date, total_frames, duration_seconds, detection_summary)
@@ -219,7 +228,7 @@ class LogoDetector:
                 print("Análisis de video guardado en la base de datos")
             except Exception as e:
                 print(f"Error al guardar análisis de video: {str(e)}")
-            
+
             return stats
 
         except Exception as e:
@@ -232,28 +241,48 @@ class LogoDetector:
                 conn.close()
             cv2.destroyAllWindows()
 
-    def train(self, epochs=100, imgsz=640, batch_size=16):
-        """Entrena el modelo con los parámetros especificados"""
-        print("Iniciando entrenamiento...")
+
+    def process_youtube_video(self, url, conf_thresholds={'adidas': 0.50, 'nike': 0.50, 'puma': 0.50}):
+        """
+        Procesa un video de YouTube con umbrales específicos por marca
+        
+        Args:
+            url (str): URL del video de YouTube
+            conf_thresholds (dict): Diccionario con umbrales de confianza por marca
+                                Ejemplo: {'adidas': 0.50, 'nike': 0.50, 'puma': 0.50}
+        Returns:
+            dict: Estadísticas de detección o None si hay error
+        """
         try:
-            self.model.train(
-                data=self.data_yaml,
-                epochs=epochs,
-                imgsz=imgsz,
-                batch=batch_size,
-                name='logo_detection'
-            )
-            print("Entrenamiento completado!")
-            
-            # Cargar el mejor modelo después del entrenamiento
-            best_weights_path = os.path.join('runs', 'detect', 'logo_detection', 'weights', 'best.pt')
-            if os.path.exists(best_weights_path):
-                self.model = YOLO(best_weights_path)
-                print(f"Mejor modelo cargado desde: {best_weights_path}")
-            else:
-                print("Advertencia: No se encontró el archivo de mejores pesos")
+            print(f"Descargando video de YouTube: {url}")
+            yt = YouTube(url)
+
+            temp_dir = "temp_videos"
+            if not os.path.exists(temp_dir):
+                os.makedirs(temp_dir)
+
+            video_path = os.path.join(temp_dir, f"youtube_{datetime.now().strftime('%Y%m%d_%H%M%S')}.mp4")
+            yt.streams.filter(progressive=True, file_extension='mp4').first().download(filename=video_path)
+
+            print(f"Video descargado en: {video_path}")
+
+            try:
+                # Procesar el video con los umbrales específicos por marca
+                stats = self.process_video(video_path, conf_thresholds)
+            finally:
+                if os.path.exists(video_path):
+                    os.remove(video_path)
+                    print(f"Video temporal eliminado: {video_path}")
+
+                if os.path.exists(temp_dir) and not os.listdir(temp_dir):
+                    os.rmdir(temp_dir)
+
+            return stats
+
         except Exception as e:
-            print(f"Error durante el entrenamiento: {str(e)}")
+            print(f"Error procesando video de YouTube: {str(e)}")
+            return None
+
 
     def generate_report(self, stats):
         """Genera un informe legible de las estadísticas"""
@@ -271,50 +300,7 @@ class LogoDetector:
             print(f"- Detecciones totales: {brand_stats['total_detections']}")
             print(f"- Frames con detecciones: {brand_stats['frames_with_detections']}")
             print(f"- Porcentaje de tiempo en pantalla: {brand_stats['percentage_time']:.2f}%")
-    def process_youtube_video(self, url, conf_threshold=0.50):
-        """
-        Downloads and processes a YouTube video
-        
-        Args:
-            url (str): YouTube video URL
-            conf_threshold (float): Confidence threshold for detections
-            
-        Returns:
-            dict: Detection statistics
-        """
-        try:
-            print(f"Descargando video de YouTube: {url}")
-            yt = YouTube(url)
-            
-            # Create a temporary directory for downloaded videos if it doesn't exist
-            temp_dir = "temp_videos"
-            if not os.path.exists(temp_dir):
-                os.makedirs(temp_dir)
-                
-            # Download the video
-            video_path = os.path.join(temp_dir, f"youtube_{datetime.now().strftime('%Y%m%d_%H%M%S')}.mp4")
-            yt.streams.filter(progressive=True, file_extension='mp4').first().download(filename=video_path)
-            
-            print(f"Video descargado en: {video_path}")
-            
-            # Process the downloaded video
-            try:
-                stats = self.process_video(video_path, conf_threshold)
-            finally:
-                # Clean up: remove the downloaded video
-                if os.path.exists(video_path):
-                    os.remove(video_path)
-                    print(f"Video temporal eliminado: {video_path}")
-                
-                # Remove temp directory if empty
-                if os.path.exists(temp_dir) and not os.listdir(temp_dir):
-                    os.rmdir(temp_dir)
-                    
-            return stats
-            
-        except Exception as e:
-            print(f"Error procesando video de YouTube: {str(e)}")
-            return None
+    
 
 def main():
     # Ruta base del proyecto
