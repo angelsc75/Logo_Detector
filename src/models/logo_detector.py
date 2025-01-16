@@ -16,10 +16,18 @@ class LogoDetector:
         """
         self.model = YOLO('yolov8n.pt')  # Comenzar con modelo pre-entrenado
         self.data_yaml = data_yaml
-        self.db_path = 'detections.db'
+        
+        # Configurar ruta correcta de la base de datos
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(data_yaml)))
+        database_dir = os.path.join(project_root, "database")
+        
+        # Crear el directorio database si no existe
+        if not os.path.exists(database_dir):
+            os.makedirs(database_dir)
+            
+        self.db_path = os.path.join(database_dir, "detections.db")
         self.setup_database()
         
-        # Verificar estructura del dataset
         self.verify_dataset_structure()
         
         if weights_path and os.path.exists(weights_path):
@@ -60,7 +68,6 @@ class LogoDetector:
         finally:
             if 'conn' in locals():
                 conn.close()
-
     def verify_dataset_structure(self):
         """Verifica que la estructura del dataset sea correcta"""
         if not self.data_yaml or not os.path.exists(self.data_yaml):
@@ -119,7 +126,7 @@ class LogoDetector:
                 print("Advertencia: No se encontró el archivo de mejores pesos")
         except Exception as e:
             print(f"Error durante el entrenamiento: {str(e)}")
-
+            
     def process_video(self, video_path, conf_threshold=0.25):
         """Procesa un video y devuelve estadísticas de detección con visualización"""
         print(f"Procesando video: {video_path}")
@@ -134,8 +141,8 @@ class LogoDetector:
             fps = cap.get(cv2.CAP_PROP_FPS)
             duration = total_frames / fps
             
-            detections_count = {'adidas': 0, 'puma': 0}
-            frames_with_detections = {'adidas': 0, 'puma': 0}
+            detections_count = {'adidas': 0, 'puma': 0, 'nike': 0}
+            frames_with_detections = {'adidas': 0, 'puma': 0, 'nike': 0}
             
             conn = sqlite3.connect(self.db_path)
             c = conn.cursor()
@@ -195,7 +202,7 @@ class LogoDetector:
             c.execute('''INSERT INTO video_analysis
                         (video_name, analysis_date, total_frames, duration_seconds, detection_summary)
                         VALUES (?, ?, ?, ?, ?)''',
-                        (video_name, datetime.now().isoformat(), total_frames, duration, json.dumps(stats)))
+                    (video_name, datetime.now().isoformat(), total_frames, duration, json.dumps(stats)))
             
             conn.commit()
             return stats
@@ -209,36 +216,6 @@ class LogoDetector:
             if 'conn' in locals():
                 conn.close()
             cv2.destroyAllWindows()
-
-                
-    def process_youtube_video(self, youtube_url):
-        """Procesa un video de YouTube"""
-        try:
-            yt = YouTube(youtube_url)
-            print(f"Descargando video: {yt.title}")
-            
-            # Obtener el stream con mejor resolución
-            stream = yt.streams.filter(progressive=True, file_extension='mp4').order_by('resolution').desc().first()
-            
-            if not stream:
-                raise Exception("No se encontró un stream válido")
-            
-            # Descargar a un archivo temporal
-            temp_path = "temp_video.mp4"
-            stream.download(filename=temp_path)
-            
-            print("Video descargado, procesando...")
-            stats = self.process_video(temp_path)
-            
-            # Limpiar archivo temporal
-            if os.path.exists(temp_path):
-                os.remove(temp_path)
-                
-            return stats
-            
-        except Exception as e:
-            print(f"Error procesando video de YouTube: {str(e)}")
-            return None
 
     def generate_report(self, stats):
         """Genera un informe legible de las estadísticas"""

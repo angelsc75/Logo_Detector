@@ -3,6 +3,6 @@ train: C:\Users\ang01\Desktop\CURSO F5\25 Proyecto de Computer Vision\brand_dete
 val: C:\Users\ang01\Desktop\CURSO F5\25 Proyecto de Computer Vision\brand_detection_Angel_Leire\data\dataset_yolo\val
 test: C:\Users\ang01\Desktop\CURSO F5\25 Proyecto de Computer Vision\brand_detection_Angel_Leire\data\dataset_yolo\test
 
-nc: 2
-names: ['adidas', 'puma']
+nc: 3
+names: ['adidas', 'puma', 'nike']
     
