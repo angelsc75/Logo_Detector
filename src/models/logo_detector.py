@@ -67,8 +67,8 @@ class LogoDetector:
         required_dirs = [
             os.path.join(dataset_dir, "train", "images"),
             os.path.join(dataset_dir, "train", "labels"),
-            os.path.join(dataset_dir, "valid", "images"),
-            os.path.join(dataset_dir, "valid", "labels"),
+            os.path.join(dataset_dir, "val", "images"),
+            os.path.join(dataset_dir, "val", "labels"),
             os.path.join(dataset_dir, "test", "images"),
             os.path.join(dataset_dir, "test", "labels")
         ]
