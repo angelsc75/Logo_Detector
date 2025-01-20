@@ -32,11 +32,6 @@ def load_detector():
             if os.path.exists(weights_path):
                 last_model = weights_path
     
-    st.sidebar.write("Rutas de inicialización:")
-    st.sidebar.write(f"- Project root: {project_root}")
-    st.sidebar.write(f"- Data YAML: {data_yaml}")
-    st.sidebar.write(f"- Último modelo: {last_model}")
-    
     return LogoDetector(last_model, data_yaml)
 
 def plot_brand_timeline(video_name, db_path):
@@ -97,71 +92,44 @@ def main():
         st.error(f"Error al inicializar el detector: {str(e)}")
         return
     
-    # Sidebar para configuración
-    st.sidebar.header("Configuración de umbrales")
+    # Sidebar para selección de marcas y configuración
+    st.sidebar.header("Configuración")
     
-    # Umbrales de confianza por marca
-    conf_thresholds = {}
-    for brand in ['adidas', 'nike', 'puma']:
-        conf_thresholds[brand] = st.sidebar.slider(
-            f"Umbral de confianza para {brand.upper()}",
-            min_value=0.0,
-            max_value=1.0,
-            value=0.5,
-            step=0.05,
-            key=f"conf_{brand}"
-        )
-    
-    # Selector de entrada
-    input_type = st.radio(
-        "Selecciona el tipo de entrada:",
-        ["Video de YouTube", "Subir video"]
+    # Selección de marcas
+    available_brands = ['adidas', 'nike', 'puma']
+    selected_brands = st.sidebar.multiselect(
+        "Seleccionar marcas a detectar",
+        available_brands,
+        default=available_brands
     )
     
-    if input_type == "Video de YouTube":
-        video_url = st.text_input("Ingresa la URL del video de YouTube:")
-        process_button = st.button("Procesar video")
-        
-        if process_button and video_url:
-            with st.spinner("Procesando video de YouTube..."):
-                stats = detector.process_youtube_video(video_url, conf_thresholds)
-                if stats:
-                    st.success("¡Video procesado exitosamente!")
-                    
-                    # Mostrar umbrales utilizados
-                    st.subheader("Umbrales de confianza utilizados")
-                    for brand, threshold in stats['thresholds_used'].items():
-                        st.write(f"{brand.upper()}: {threshold:.2f}")
-                    
-                    # Mostrar gráficas
-                    st.subheader("Análisis de detecciones")
-                    
-                    # Gráfico de resumen
-                    fig_summary = plot_brand_summary(stats)
-                    st.plotly_chart(fig_summary)
-                    
-                    # Gráfico de línea temporal
-                    video_name = f"youtube_{datetime.now().strftime('%Y%m%d_%H%M%S')}.mp4"
-                    fig_timeline = plot_brand_timeline(video_name, detector.db_path)
-                    if fig_timeline:
-                        st.plotly_chart(fig_timeline)
-                    
-                    # Mostrar estadísticas detalladas
-                    st.subheader("Estadísticas detalladas")
-                    st.json(stats)
-                else:
-                    st.error("Error al procesar el video")
+    # Umbrales de confianza solo para las marcas seleccionadas
+    conf_thresholds = {}
+    if selected_brands:
+        st.sidebar.header("Umbrales de confianza")
+        for brand in selected_brands:
+            conf_thresholds[brand] = st.sidebar.slider(
+                f"Umbral de confianza para {brand.upper()}",
+                min_value=0.0,
+                max_value=1.0,
+                value=0.5,
+                step=0.05,
+                key=f"conf_{brand}"
+            )
     
-    else:  # Subir video
-        uploaded_file = st.file_uploader("Selecciona un video", type=['mp4', 'avi', 'mov'])
-        if uploaded_file:
-            # Guardar el archivo subido temporalmente
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as tmp_file:
-                tmp_file.write(uploaded_file.read())
-                video_path = tmp_file.name
-            
-            process_button = st.button("Procesar video")
-            if process_button:
+    # Subir video
+    uploaded_file = st.file_uploader("Selecciona un video", type=['mp4', 'avi', 'mov'])
+    if uploaded_file:
+        # Guardar el archivo subido temporalmente
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as tmp_file:
+            tmp_file.write(uploaded_file.read())
+            video_path = tmp_file.name
+        
+        process_button = st.button("Procesar video")
+        if process_button:
+            if not selected_brands:
+                st.error("Por favor, selecciona al menos una marca para detectar")
+            else:
                 with st.spinner("Procesando video..."):
                     stats = detector.process_video(video_path, conf_thresholds)
                     if stats:
@@ -184,9 +152,9 @@ def main():
                         st.json(stats)
                     else:
                         st.error("Error al procesar el video")
-                
-                # Limpiar archivo temporal
-                os.unlink(video_path)
+            
+            # Limpiar archivo temporal
+            os.unlink(video_path)
 
 if __name__ == "__main__":
     main()

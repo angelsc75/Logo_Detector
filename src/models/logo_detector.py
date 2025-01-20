@@ -5,7 +5,6 @@ import numpy as np
 from datetime import datetime
 import sqlite3
 import json
-from pytube import YouTube
 
 class LogoDetector:
     def __init__(self, weights_path=None, data_yaml=None):
@@ -23,7 +22,7 @@ class LogoDetector:
         # Configurar ruta de la base de datos al mismo nivel que data
         if data_yaml:
             # Obtener la ruta al directorio 'data'
-            data_dir = os.path.dirname(os.path.dirname(self.data_yaml))  # Subir hasta el directorio que contiene 'data'
+            data_dir = os.path.dirname(os.path.dirname(self.data_yaml))
             # La base de datos debe estar al mismo nivel que 'data'
             project_root = os.path.dirname(data_dir)
         else:
@@ -60,7 +59,6 @@ class LogoDetector:
             print(f"Error: No se encuentra data.yaml en {self.data_yaml}")
             return False
 
-        # Obtener el directorio base del dataset
         dataset_dir = os.path.dirname(self.data_yaml)
         print(f"Verificando estructura del dataset en: {dataset_dir}")
         
@@ -125,7 +123,7 @@ class LogoDetector:
             
         except Exception as e:
             print(f"Error configurando la base de datos: {str(e)}")
-            raise  # Re-lanzar la excepción para debug
+            raise
         finally:
             if 'conn' in locals():
                 conn.close()
@@ -144,8 +142,8 @@ class LogoDetector:
             fps = cap.get(cv2.CAP_PROP_FPS)
             duration = total_frames / fps
 
-            detections_count = {'adidas': 0, 'puma': 0, 'nike': 0}
-            frames_with_detections = {'adidas': 0, 'puma': 0, 'nike': 0}
+            detections_count = {brand: 0 for brand in conf_thresholds.keys()}
+            frames_with_detections = {brand: 0 for brand in conf_thresholds.keys()}
 
             conn = sqlite3.connect(self.db_path)
             c = conn.cursor()
@@ -168,7 +166,7 @@ class LogoDetector:
                     cls = results.names[int(box.cls[0])]
                     conf = float(box.conf[0])
 
-                    # Verificar el umbral específico de la marca después de la detección
+                    # Solo procesar las marcas seleccionadas
                     if cls in conf_thresholds and conf >= conf_thresholds[cls]:
                         xyxy = box.xyxy[0].cpu().numpy()
 
@@ -241,49 +239,6 @@ class LogoDetector:
                 conn.close()
             cv2.destroyAllWindows()
 
-
-    def process_youtube_video(self, url, conf_thresholds={'adidas': 0.50, 'nike': 0.50, 'puma': 0.50}):
-        """
-        Procesa un video de YouTube con umbrales específicos por marca
-        
-        Args:
-            url (str): URL del video de YouTube
-            conf_thresholds (dict): Diccionario con umbrales de confianza por marca
-                                Ejemplo: {'adidas': 0.50, 'nike': 0.50, 'puma': 0.50}
-        Returns:
-            dict: Estadísticas de detección o None si hay error
-        """
-        try:
-            print(f"Descargando video de YouTube: {url}")
-            yt = YouTube(url)
-
-            temp_dir = "temp_videos"
-            if not os.path.exists(temp_dir):
-                os.makedirs(temp_dir)
-
-            video_path = os.path.join(temp_dir, f"youtube_{datetime.now().strftime('%Y%m%d_%H%M%S')}.mp4")
-            yt.streams.filter(progressive=True, file_extension='mp4').first().download(filename=video_path)
-
-            print(f"Video descargado en: {video_path}")
-
-            try:
-                # Procesar el video con los umbrales específicos por marca
-                stats = self.process_video(video_path, conf_thresholds)
-            finally:
-                if os.path.exists(video_path):
-                    os.remove(video_path)
-                    print(f"Video temporal eliminado: {video_path}")
-
-                if os.path.exists(temp_dir) and not os.listdir(temp_dir):
-                    os.rmdir(temp_dir)
-
-            return stats
-
-        except Exception as e:
-            print(f"Error procesando video de YouTube: {str(e)}")
-            return None
-
-
     def generate_report(self, stats):
         """Genera un informe legible de las estadísticas"""
         if not stats:
@@ -300,11 +255,10 @@ class LogoDetector:
             print(f"- Detecciones totales: {brand_stats['total_detections']}")
             print(f"- Frames con detecciones: {brand_stats['frames_with_detections']}")
             print(f"- Porcentaje de tiempo en pantalla: {brand_stats['percentage_time']:.2f}%")
-    
 
 def main():
     # Ruta base del proyecto
-    project_root = "C:/Users/ang01/Desktop/CURSO F5/25 Proyecto de Computer Vision/brand_detection_Angel_Leire"
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     
     # Construir rutas
     data_yaml = os.path.join(project_root, "data", "dataset_yolo", "data.yaml")
@@ -313,7 +267,6 @@ def main():
     runs_dir = os.path.join(project_root, "runs", "detect")
     last_model = None
     if os.path.exists(runs_dir):
-        # Buscar la última carpeta logo_detection con un modelo entrenado
         detection_folders = [f for f in os.listdir(runs_dir) if f.startswith('logo_detection')]
         if detection_folders:
             last_folder = sorted(detection_folders, key=lambda x: int(x.replace('logo_detection', '') or 0))[-1]
@@ -337,16 +290,12 @@ def main():
             print("Por favor, corrige la estructura del dataset antes de entrenar")
             return
     
-    # Solicitar URL del video
-    video_input = input("Ingresa la ruta al video local o URL de YouTube: ")
+    # Solicitar ruta del video
+    video_path = input("Ingresa la ruta al video local: ")
     
-    # Procesar según el tipo de entrada
-    if video_input.startswith(('http://', 'https://')):
-        print("Procesando video de YouTube...")
-        stats = detector.process_youtube_video(video_input)
-    else:
-        print("Procesando video local...")
-        stats = detector.process_video(video_input)
+    # Procesar video
+    print("Procesando video local...")
+    stats = detector.process_video(video_path)
     
     if stats:
         detector.generate_report(stats)
