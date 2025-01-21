@@ -22,6 +22,8 @@ services:
     volumes:
       - ./src:/app/src
       - ./runs:/app/runs
+      - ./database:/app/database
+      - ./logo_branding_eye.png:/app/logo_branding_eye.png
     depends_on:
       - api
     environment:
