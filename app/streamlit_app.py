@@ -12,6 +12,31 @@ from PIL import Image
 import logging
 import time
 
+# Configuración de la página
+st.set_page_config(
+    page_title="Branding Eye",
+    page_icon="👁️",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# Aplicar estilo personalizado
+st.markdown("""
+    <style>
+        .main {
+            background-color: #E6E6FA;
+        }
+        .stApp {
+            background-color: #E6E6FA;
+        }
+        .css-1v0mbdj.etr89bj1 img {
+            display: block;
+            margin-left: auto;
+            margin-right: auto;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
 # Añadir el directorio src al path de Python
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(current_dir)
@@ -22,11 +47,43 @@ sys.path.append(src_path)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-
 # Importar LogoDetector desde models
 from models.logo_detector import LogoDetector
-API_URL = "http://127.0.0.1:8000"  # Asegúrate de que FastAPI esté corriendo en esta dirección
+API_URL = os.getenv('API_URL', 'http://127.0.0.1:8000')  # Asegúrate de que FastAPI esté corriendo en esta dirección
 
+def show_header():
+    # En Docker, el logo estará en el directorio actual
+    logo_path = "logo_branding_eye.png"
+    if os.path.exists(logo_path):
+        st.image(logo_path, width=200)
+    else:
+        logger.warning(f"Logo no encontrado en: {logo_path}")
+    st.markdown("<h1 style='text-align: center;'>Branding Eye</h1>", unsafe_allow_html=True)
+    
+def load_detector():
+    """Inicializa y carga el detector de logos"""
+    if 'detector' not in st.session_state:
+        try:
+            data_yaml = os.path.join(project_root, "data", "dataset_yolo", "data.yaml")
+            
+            # Buscar el último modelo entrenado
+            runs_dir = os.path.join(project_root, "runs", "detect")
+            last_model = None
+            if os.path.exists(runs_dir):
+                detection_folders = [f for f in os.listdir(runs_dir) if f.startswith('logo_detection')]
+                if detection_folders:
+                    last_folder = sorted(detection_folders, key=lambda x: int(x.replace('logo_detection', '') or 0))[-1]
+                    weights_path = os.path.join(runs_dir, last_folder, "weights", "best.pt")
+                    if os.path.exists(weights_path):
+                        last_model = weights_path
+            
+            st.session_state.detector = LogoDetector(last_model, data_yaml)
+            logger.info("Detector inicializado correctamente")
+        except Exception as e:
+            logger.error(f"Error al inicializar el detector: {str(e)}")
+            raise e
+
+    return st.session_state.detector
 def clean_database_folder():
     """Limpia todo el contenido de la carpeta database y reinicializa la base de datos."""
     current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -318,7 +375,8 @@ def plot_brand_summary(stats):
     return fig
 
 def main():
-    st.title("Detector de Logos en Videos")
+    # Mostrar header con logo
+    show_header()
 
     # Sidebar para navegación y acciones
     st.sidebar.title("Menú")
@@ -338,10 +396,9 @@ def main():
         ["Procesar Video", "Gestión de Detecciones"]
     )
 
-    # Inicializar el detector
+    # Inicializar el detector (ahora solo una vez)
     try:
         detector = load_detector()
-        st.success("Detector inicializado correctamente")
     except Exception as e:
         st.error(f"Error al inicializar el detector: {str(e)}")
         return
@@ -423,11 +480,4 @@ def process_video_logic(detector):
 
 
 if __name__ == "__main__":
-    if 'detector' not in st.session_state:
-        try:
-            st.session_state.detector = load_detector()
-            st.success("Detector inicializado correctamente")
-        except Exception as e:
-            st.error(f"Error al inicializar el detector: {str(e)}")
-            st.stop()
     main()
