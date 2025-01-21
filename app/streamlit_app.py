@@ -123,10 +123,10 @@ def manage_detections():
                         
                         with col2:
                             if st.button("🗑️ Eliminar", key=f"delete_{detection['rowid']}"):
+                                logger.info(f"Se hizo clic en el botón para rowid {detection['rowid']}")
                                 if delete_detection(detection['rowid']):
                                     st.success(f"Detección {detection['rowid']} eliminada")
-                                    time.sleep(0.5)
-                                    st.experimental_rerun()
+
                         
                         st.markdown("---")
             else:
@@ -201,7 +201,14 @@ def plot_brand_summary(stats):
 
 def main():
     st.title("Detector de Logos en Videos")
-    
+
+    # Sidebar para navegación
+    st.sidebar.title("Menú")
+    app_mode = st.sidebar.radio(
+        "Selecciona una funcionalidad",
+        ["Procesar Video", "Gestión de Detecciones"]
+    )
+
     # Inicializar el detector
     try:
         detector = load_detector()
@@ -209,10 +216,19 @@ def main():
     except Exception as e:
         st.error(f"Error al inicializar el detector: {str(e)}")
         return
-    
-    # Sidebar para selección de marcas y configuración
+
+    if app_mode == "Procesar Video":
+        # Lógica para procesar video
+        process_video_logic(detector)
+    elif app_mode == "Gestión de Detecciones":
+        # Llamar a manage_detections
+        manage_detections()
+
+
+def process_video_logic(detector):
+    """Lógica para la funcionalidad de procesamiento de videos."""
     st.sidebar.header("Configuración")
-    
+
     # Selección de marcas
     available_brands = ['adidas', 'nike', 'puma']
     selected_brands = st.sidebar.multiselect(
@@ -220,7 +236,7 @@ def main():
         available_brands,
         default=available_brands
     )
-    
+
     # Umbrales de confianza solo para las marcas seleccionadas
     conf_thresholds = {}
     if selected_brands:
@@ -234,7 +250,7 @@ def main():
                 step=0.05,
                 key=f"conf_{brand}"
             )
-    
+
     # Subir video
     uploaded_file = st.file_uploader("Selecciona un video", type=['mp4', 'avi', 'mov'])
     if uploaded_file:
@@ -242,7 +258,7 @@ def main():
         with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as tmp_file:
             tmp_file.write(uploaded_file.read())
             video_path = tmp_file.name
-        
+
         process_button = st.button("Procesar video")
         if process_button:
             if not selected_brands:
@@ -252,28 +268,28 @@ def main():
                     stats = detector.process_video(video_path, conf_thresholds)
                     if stats:
                         st.success("¡Video procesado exitosamente!")
-                        
+
                         # Mostrar gráficas
                         st.subheader("Análisis de detecciones")
-                        
+
                         # Gráfico de resumen
                         fig_summary = plot_brand_summary(stats)
                         st.plotly_chart(fig_summary)
-                        
+
                         # Gráfico de línea temporal
                         fig_timeline = plot_brand_timeline(uploaded_file.name, detector.db_path)
                         if fig_timeline:
                             st.plotly_chart(fig_timeline)
-                        
+
                         # Mostrar estadísticas detalladas
                         st.subheader("Estadísticas detalladas")
                         st.json(stats)
                     else:
                         st.error("Error al procesar el video")
-            
-            # Limpiar archivo temporal
-            os.unlink(video_path)
+
+                # Limpiar archivo temporal
+                os.unlink(video_path)
 
 if __name__ == "__main__":
     main()
-    manage_detections()
+    
