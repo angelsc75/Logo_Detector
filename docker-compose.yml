@@ -24,7 +24,8 @@ services:
       - ./runs:/app/runs
       - ./database:/app/database
       - ./logo_branding_eye.png:/app/logo_branding_eye.png:ro
-      - ./.streamlit:/root/.streamlit  # Añade esta línea
+      - ./.streamlit:/root/.streamlit  
+      
     depends_on:
       - api
     environment:
