@@ -99,10 +99,8 @@ def manage_detections():
                                 **Confianza:** {detection['confidence']:.2f}
                             """)
                             
-                            # Mejorar el manejo de imágenes
                             if detection['image_path']:
                                 try:
-                                    # Construir la ruta absoluta correctamente
                                     base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
                                     image_path = os.path.join(base_path, "database", "images", 
                                                             os.path.basename(detection['image_path']))
@@ -111,10 +109,11 @@ def manage_detections():
                                     
                                     if os.path.exists(image_path):
                                         image = Image.open(image_path)
+                                        # Cambio de use_column_width a use_container_width
                                         st.image(image, 
                                                caption=f"Detección de {detection['brand']} (Frame {detection['frame_number']})",
-                                               use_column_width=True)
-                                        image.close()  # Cerrar la imagen después de mostrarla
+                                               use_container_width=True)
+                                        image.close()
                                     else:
                                         logger.warning(f"Archivo de imagen no encontrado: {image_path}")
                                         st.warning("Imagen no disponible")
