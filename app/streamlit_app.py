@@ -195,7 +195,9 @@ def plot_brand_timeline(video_name, db_path):
     return fig
 
 def plot_brand_summary(stats):
-    """Genera un gráfico de barras con el resumen de detecciones"""
+    """Genera dos gráficos: un gráfico de barras para las detecciones totales
+    y un gráfico circular para los porcentajes de tiempo en pantalla."""
+    
     brands = []
     percentages = []
     detections = []
@@ -205,16 +207,58 @@ def plot_brand_summary(stats):
         percentages.append(data['percentage_time'])
         detections.append(data['total_detections'])
     
-    fig = go.Figure(data=[
-        go.Bar(name='Tiempo en pantalla (%)', x=brands, y=percentages),
-        go.Bar(name='Total detecciones', x=brands, y=detections)
-    ])
+    # Crear la figura con dos subplots
+    fig = go.Figure()
     
+    # Configurar el layout para dos gráficos lado a lado
+    fig = go.Figure()
+    
+    # Gráfico de barras para total de detecciones
+    fig.add_trace(
+        go.Bar(
+            x=brands,
+            y=detections,
+            name='Total detecciones',
+            text=detections,
+            textposition='auto',
+            marker_color=['#1f77b4', '#ff7f0e', '#2ca02c']  # Colores distintos para cada marca
+        )
+    )
+    
+    # Gráfico circular para porcentajes
+    fig.add_trace(
+        go.Pie(
+            labels=brands,
+            values=percentages,
+            name='Tiempo en pantalla',
+            domain={'x': [0.6, 1]},  # Posicionar el pie chart en la parte derecha
+            hole=0.4,  # Hacer un donut chart
+            textinfo='label+percent',
+            textposition='auto',
+            marker=dict(colors=['#1f77b4', '#ff7f0e', '#2ca02c'])
+        )
+    )
+    
+    # Actualizar el layout
     fig.update_layout(
-        title='Resumen de detecciones por marca',
+        title='Análisis de Detecciones por Marca',
+        showlegend=False,
+        # Ajustar el gráfico de barras al lado izquierdo
         barmode='group',
-        yaxis_title='Valores',
-        xaxis_title='Marcas'
+        xaxis=dict(domain=[0, 0.5]),
+        # Configuración general
+        height=500,
+        margin=dict(t=50, l=50, r=50, b=50),
+        # Títulos de los ejes para el gráfico de barras
+        xaxis_title="Marcas",
+        yaxis_title="Número de detecciones"
+    )
+    
+    # Actualizar el diseño de las barras
+    fig.update_traces(
+        selector=dict(type='bar'),
+        texttemplate='%{text:,}',  # Formato con separador de miles
+        textposition='auto'
     )
     
     return fig
