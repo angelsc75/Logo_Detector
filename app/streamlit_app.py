@@ -27,6 +27,60 @@ logger = logging.getLogger(__name__)
 from models.logo_detector import LogoDetector
 API_URL = "http://127.0.0.1:8000"  # Asegúrate de que FastAPI esté corriendo en esta dirección
 
+def clean_database_folder():
+    """Limpia todo el contenido de la carpeta database y reinicializa la base de datos."""
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(current_dir)
+    database_dir = os.path.join(project_root, "database")
+    
+    if os.path.exists(database_dir):
+        # Eliminar todos los archivos dentro de la carpeta
+        for item in os.listdir(database_dir):
+            item_path = os.path.join(database_dir, item)
+            try:
+                if os.path.isfile(item_path):
+                    os.unlink(item_path)
+                elif os.path.isdir(item_path):
+                    import shutil
+                    shutil.rmtree(item_path)
+                logger.info(f"Eliminado: {item_path}")
+            except Exception as e:
+                logger.error(f"Error eliminando {item_path}: {str(e)}")
+    else:
+        os.makedirs(database_dir)
+        logger.info(f"Creado directorio database: {database_dir}")
+    
+    # Crear el directorio para imágenes
+    images_dir = os.path.join(database_dir, "images")
+    os.makedirs(images_dir, exist_ok=True)
+    logger.info(f"Creado directorio de imágenes: {images_dir}")
+    
+    # Reinicializar la base de datos
+    db_path = os.path.join(database_dir, "detections.db")
+    conn = sqlite3.connect(db_path)
+    c = conn.cursor()
+    
+    # Crear las tablas necesarias
+    c.execute('''CREATE TABLE IF NOT EXISTS video_analysis
+                (video_name TEXT,
+                analysis_date TEXT,
+                total_frames INTEGER,
+                duration_seconds REAL,
+                detection_summary TEXT)''')
+    
+    c.execute('''CREATE TABLE IF NOT EXISTS detections
+                (video_name TEXT,
+                frame_number INTEGER,
+                brand TEXT,
+                confidence REAL,
+                bbox TEXT,
+                timestamp REAL,
+                image_path TEXT)''')
+    
+    conn.commit()
+    conn.close()
+    logger.info("Base de datos reinicializada correctamente")
+        
 def search_detections(video_name=None, brand=None):
     """Llama a la API para buscar detecciones."""
     params = {}
@@ -266,8 +320,19 @@ def plot_brand_summary(stats):
 def main():
     st.title("Detector de Logos en Videos")
 
-    # Sidebar para navegación
+    # Sidebar para navegación y acciones
     st.sidebar.title("Menú")
+    
+    # Botón para limpiar la base de datos
+    if st.sidebar.button("🗑️ Limpiar Base de Datos"):
+        with st.spinner("Limpiando base de datos..."):
+            clean_database_folder()
+            # Reinicializar el detector
+            if 'detector' in st.session_state:
+                st.session_state.detector.setup_database()
+        st.sidebar.success("Base de datos limpiada correctamente")
+        
+    # Selección de modo
     app_mode = st.sidebar.radio(
         "Selecciona una funcionalidad",
         ["Procesar Video", "Gestión de Detecciones"]
@@ -282,10 +347,8 @@ def main():
         return
 
     if app_mode == "Procesar Video":
-        # Lógica para procesar video
         process_video_logic(detector)
     elif app_mode == "Gestión de Detecciones":
-        # Llamar a manage_detections
         manage_detections()
 
 
@@ -328,31 +391,35 @@ def process_video_logic(detector):
             if not selected_brands:
                 st.error("Por favor, selecciona al menos una marca para detectar")
             else:
-                with st.spinner("Procesando video..."):
-                    stats = detector.process_video(video_path, conf_thresholds)
-                    if stats:
-                        st.success("¡Video procesado exitosamente!")
+                try:
+                    with st.spinner("Procesando video..."):
+                        stats = detector.process_video(video_path, conf_thresholds)
+                        if stats:
+                            st.success("¡Video procesado exitosamente!")
 
-                        # Mostrar gráficas
-                        st.subheader("Análisis de detecciones")
+                            # Mostrar gráficas
+                            st.subheader("Análisis de detecciones")
 
-                        # Gráfico de resumen
-                        fig_summary = plot_brand_summary(stats)
-                        st.plotly_chart(fig_summary)
+                            # Gráfico de resumen
+                            fig_summary = plot_brand_summary(stats)
+                            st.plotly_chart(fig_summary)
 
-                        # Gráfico de línea temporal
-                        fig_timeline = plot_brand_timeline(uploaded_file.name, detector.db_path)
-                        if fig_timeline:
-                            st.plotly_chart(fig_timeline)
+                            # Gráfico de línea temporal
+                            fig_timeline = plot_brand_timeline(uploaded_file.name, detector.db_path)
+                            if fig_timeline:
+                                st.plotly_chart(fig_timeline)
 
-                        # Mostrar estadísticas detalladas
-                        st.subheader("Estadísticas detalladas")
-                        st.json(stats)
-                    else:
-                        st.error("Error al procesar el video")
-
-                # Limpiar archivo temporal
-                os.unlink(video_path)
+                            # Mostrar estadísticas detalladas
+                            st.subheader("Estadísticas detalladas")
+                            st.json(stats)
+                        else:
+                            st.error("Error al procesar el video")
+                except Exception as e:
+                    st.error(f"Error durante el procesamiento: {str(e)}")
+                    logger.error(f"Error detallado: {str(e)}")
+                finally:
+                    # Limpiar archivo temporal
+                    os.unlink(video_path)
 
 
 if __name__ == "__main__":
