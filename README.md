@@ -1,4 +1,4 @@
-# brand_detection_Angel_Leire# Detección de Marcas en Videos e Imágenes
+# Detección de Marcas en Videos e Imágenes
 
 Este proyecto implementa un sistema de detección de marcas en videos e imágenes, con conexión a una base de datos y una API desarrollada con FastAPI. Además, incluye una interfaz interactiva basada en Streamlit para gestionar y visualizar los resultados de detección.
 
