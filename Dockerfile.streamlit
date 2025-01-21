@@ -13,27 +13,31 @@ RUN apt-get update && apt-get install -y \
 # Set working directory
 WORKDIR /app
 
-# Copy the logo first and verify its presence
-COPY logo_branding_eye.png /app/
-RUN ls -la /app/logo_branding_eye.png || echo "Logo file not copied correctly"
-
-# Copy application files
+# Copy application files first
 COPY app/streamlit_app.py .
 COPY requirements.txt .
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Configure Xvfb
+# Configure Xvfb and Streamlit
 ENV DISPLAY=:99
+ENV STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
 
-# Create script to handle Xvfb startup and verify logo
+# Create directory for Streamlit config
+RUN mkdir -p /root/.streamlit
+
+# Create config.toml
+RUN echo '\
+[browser]\n\
+gatherUsageStats = false\n\
+' > /root/.streamlit/config.toml
+
+# Create startup script
 RUN echo '#!/bin/bash\n\
-echo "Contenido del directorio /app:"\n\
-ls -la /app/\n\
 rm -f /tmp/.X99-lock\n\
 Xvfb :99 -screen 0 1024x768x24 -ac +extension GLX +render -noreset &\n\
-streamlit run streamlit_app.py --server.port=8501 --server.address=0.0.0.0' > /app/start.sh \
+exec streamlit run streamlit_app.py --server.port=8501 --server.address=0.0.0.0' > /app/start.sh \
     && chmod +x /app/start.sh
 
 # Expose Streamlit port

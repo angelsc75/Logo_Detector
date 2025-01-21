@@ -27,7 +27,8 @@ services:
     depends_on:
       - api
     environment:
+      - STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
       - PYTHONUNBUFFERED=1
-      - API_URL=http://api:8000  # URL para Docker
+      - API_URL=http://api:8000
 
 
