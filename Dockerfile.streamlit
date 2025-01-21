@@ -13,10 +13,13 @@ RUN apt-get update && apt-get install -y \
 # Set working directory
 WORKDIR /app
 
+# Copy the logo first and verify its presence
+COPY logo_branding_eye.png /app/
+RUN ls -la /app/logo_branding_eye.png || echo "Logo file not copied correctly"
+
 # Copy application files
 COPY app/streamlit_app.py .
 COPY requirements.txt .
-COPY logo_branding_eye.png .
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
@@ -24,8 +27,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Configure Xvfb
 ENV DISPLAY=:99
 
-# Create script to handle Xvfb startup
+# Create script to handle Xvfb startup and verify logo
 RUN echo '#!/bin/bash\n\
+echo "Contenido del directorio /app:"\n\
+ls -la /app/\n\
 rm -f /tmp/.X99-lock\n\
 Xvfb :99 -screen 0 1024x768x24 -ac +extension GLX +render -noreset &\n\
 streamlit run streamlit_app.py --server.port=8501 --server.address=0.0.0.0' > /app/start.sh \

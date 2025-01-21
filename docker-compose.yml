@@ -23,10 +23,11 @@ services:
       - ./src:/app/src
       - ./runs:/app/runs
       - ./database:/app/database
-      - ./logo_branding_eye.png:/app/logo_branding_eye.png
+      - ./logo_branding_eye.png:/app/logo_branding_eye.png:ro
     depends_on:
       - api
     environment:
       - PYTHONUNBUFFERED=1
+      - API_URL=http://api:8000  # URL para Docker
 
 
