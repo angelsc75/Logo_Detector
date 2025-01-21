@@ -65,6 +65,7 @@ dataset/
 *.jpg
 *.jpeg
 *.png
+!logo_branding_eye.png
 *.txt
 !requirements.txt
 *.pt
