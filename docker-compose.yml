@@ -1,26 +1,30 @@
-version: '3.8'
-
+version: "3.9"
 services:
   api:
     build:
       context: .
-      dockerfile: docker/api.Dockerfile
+      dockerfile: Dockerfile.api
     ports:
       - "8000:8000"
     volumes:
-      - ./models:/app/models
+      - ./src:/app/src
       - ./database:/app/database
+      - ./runs:/app/runs
     environment:
-      - MODEL_PATH=/app/models/weights/best.pt
-      - DATABASE_URL=sqlite:///app/database/detections.db
+      - PYTHONUNBUFFERED=1
 
   streamlit:
     build:
       context: .
-      dockerfile: docker/streamlit.Dockerfile
+      dockerfile: Dockerfile.streamlit
     ports:
       - "8501:8501"
-    environment:
-      - API_URL=http://api:8000
+    volumes:
+      - ./src:/app/src
+      - ./runs:/app/runs
     depends_on:
       - api
+    environment:
+      - PYTHONUNBUFFERED=1
+
+
