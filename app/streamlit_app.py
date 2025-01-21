@@ -43,97 +43,117 @@ def search_detections(video_name=None, brand=None):
 
 def delete_detection(rowid):
     """Llama a la API para eliminar una detección."""
+    logger.info(f"Iniciando delete_detection para rowid: {rowid}")
+    
+    # Verificar si ya se está procesando esta eliminación
+    if 'processing_delete' not in st.session_state:
+        st.session_state.processing_delete = False
+        
+    if st.session_state.processing_delete:
+        logger.info("Evitando doble ejecución del delete")
+        return False
+        
+    st.session_state.processing_delete = True
+    
+    url = f"{API_URL}/detections/{rowid}"
+    logger.info(f"URL de la petición DELETE: {url}")
+    
     try:
-        # Agregar logging para debug
-        logger.info(f"Intentando eliminar detección {rowid}")
-        
-        response = requests.delete(f"{API_URL}/detections/{rowid}")
-        
-        # Log de la respuesta
-        logger.info(f"Respuesta del servidor: Status={response.status_code}, Content={response.text}")
+        response = requests.delete(url)
+        logger.info(f"Petición DELETE enviada. Status code: {response.status_code}")
+        logger.info(f"Respuesta completa: {response.text}")
         
         if response.status_code == 200:
             st.success(f"Detección {rowid} eliminada correctamente")
-            # Forzar refresco de la página después de un pequeño delay
-            time.sleep(0.5)  # Pequeña pausa para asegurar que la UI se actualice
-            
+            # Resetear el estado y recargar
+            st.session_state.processing_delete = False
+            st.session_state.delete_requested = False
+            st.session_state.delete_id = None
+            st.rerun()
             return True
-        else:
-            error_msg = f"Error al eliminar la detección. Status: {response.status_code}"
-            if response.text:
-                try:
-                    error_msg += f". Detalle: {response.json()['detail']}"
-                except:
-                    error_msg += f". Respuesta: {response.text}"
-            logger.error(error_msg)
-            st.error(error_msg)
-            return False
-            
-    except requests.exceptions.RequestException as e:
-        error_msg = f"Error de conexión al intentar eliminar la detección: {str(e)}"
-        logger.error(error_msg)
-        st.error(error_msg)
+        
+        st.session_state.processing_delete = False
+        return False
+        
+    except Exception as e:
+        logger.error(f"Error en delete_detection: {str(e)}")
+        st.session_state.processing_delete = False
         return False
 
 def manage_detections():
     st.header("Gestión de Detecciones")
+    
+    # Variables de estado para controlar el borrado
+    if 'delete_requested' not in st.session_state:
+        st.session_state.delete_requested = False
+    if 'delete_id' not in st.session_state:
+        st.session_state.delete_id = None
+    if 'processing_delete' not in st.session_state:
+        st.session_state.processing_delete = False
+
+    # Función para manejar el click del botón
+    def request_delete(rowid):
+        if not st.session_state.processing_delete:
+            st.session_state.delete_requested = True
+            st.session_state.delete_id = rowid
+            logger.info(f"Delete solicitado para rowid: {rowid}")
 
     # Formulario de búsqueda
     video_name = st.text_input("Nombre del video (opcional)")
     brand = st.selectbox("Marca", ["", "adidas", "nike", "puma"], index=0)
     
-    search_clicked = st.button("Buscar detecciones")
-    
-    if search_clicked:
-        try:
-            detections = search_detections(video_name, brand)
-            if detections:
-                for detection in detections:
-                    with st.container():
-                        col1, col2 = st.columns([3, 1])
-                        with col1:
-                            st.markdown(f"""
-                                **ID:** {detection['rowid']}  
-                                **Marca:** {detection['brand']}  
-                                **Frame:** {detection['frame_number']}  
-                                **Confianza:** {detection['confidence']:.2f}
-                            """)
-                            
-                            if detection['image_path']:
-                                try:
-                                    base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-                                    image_path = os.path.join(base_path, "database", "images", 
-                                                            os.path.basename(detection['image_path']))
-                                    
-                                    logger.info(f"Intentando cargar imagen desde: {image_path}")
-                                    
-                                    if os.path.exists(image_path):
-                                        image = Image.open(image_path)
-                                        # Cambio de use_column_width a use_container_width
-                                        st.image(image, 
-                                               caption=f"Detección de {detection['brand']} (Frame {detection['frame_number']})",
-                                               use_container_width=True)
-                                        image.close()
-                                    else:
-                                        logger.warning(f"Archivo de imagen no encontrado: {image_path}")
-                                        st.warning("Imagen no disponible")
-                                except Exception as e:
-                                    logger.error(f"Error al cargar la imagen: {str(e)}")
-                                    st.error("Error al cargar la imagen")
+    if st.button("Buscar detecciones"):
+        logger.info("Botón de búsqueda presionado")
+        detections = search_detections(video_name, brand)
+        
+        if detections:
+            for detection in detections:
+                with st.container():
+                    col1, col2 = st.columns([3, 1])
+                    with col1:
+                        st.markdown(f"""
+                            **ID:** {detection['rowid']}  
+                            **Marca:** {detection['brand']}  
+                            **Frame:** {detection['frame_number']}  
+                            **Confianza:** {detection['confidence']:.2f}
+                        """)
                         
-                        with col2:
-                            if st.button("🗑️ Eliminar", key=f"delete_{detection['rowid']}"):
-                                logger.info(f"Se hizo clic en el botón para rowid {detection['rowid']}")
-                                if delete_detection(detection['rowid']):
-                                    st.success(f"Detección {detection['rowid']} eliminada")
+                        if detection['image_path']:
+                            try:
+                                base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                                image_path = os.path.join(base_path, "database", "images", 
+                                                        os.path.basename(detection['image_path']))
+                                
+                                if os.path.exists(image_path):
+                                    image = Image.open(image_path)
+                                    st.image(image, 
+                                           caption=f"Detección de {detection['brand']} (Frame {detection['frame_number']})",
+                                           use_container_width=True)
+                                    image.close()
+                            except Exception as e:
+                                logger.error(f"Error al cargar la imagen: {str(e)}")
+                    
+                    with col2:
+                        if st.button("🗑️ Eliminar", key=f"delete_{detection['rowid']}", 
+                                   on_click=request_delete, args=(detection['rowid'],)):
+                            logger.info(f"Botón de eliminar presionado para rowid: {detection['rowid']}")
 
-                        
-                        st.markdown("---")
-            else:
-                st.info("No se encontraron detecciones.")
-        except Exception as e:
-            logger.error(f"Error en manage_detections: {str(e)}")
-            st.error(f"Error inesperado: {str(e)}")
+                    st.markdown("---")
+        else:
+            st.info("No se encontraron detecciones.")
+
+    # Procesar la eliminación si fue solicitada
+    if st.session_state.delete_requested and not st.session_state.processing_delete:
+        logger.info(f"Procesando solicitud de eliminación para rowid: {st.session_state.delete_id}")
+        if delete_detection(st.session_state.delete_id):
+            st.session_state.delete_requested = False
+            st.session_state.delete_id = None
+            st.session_state.processing_delete = False
+        else:
+            st.error("Error al eliminar la detección")
+            st.session_state.delete_requested = False
+            st.session_state.delete_id = None
+            st.session_state.processing_delete = False
             
 def load_detector():
     """Inicializa y carga el detector de logos"""
