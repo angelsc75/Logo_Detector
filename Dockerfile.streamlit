@@ -1,0 +1,28 @@
+FROM python:3.10-slim
+
+# Instalar dependencias del sistema necesarias
+RUN apt-get update && apt-get install -y \
+    libgl1-mesa-glx libglib2.0-0 libx11-6 libsm6 libxrender1 xvfb \
+    chmod +x /usr/bin/xvfb-run\
+    && rm -rf /var/lib/apt/lists/*
+    
+
+# Establecer el directorio de trabajo
+WORKDIR /app
+
+# Copiar los archivos de la aplicación Streamlit
+COPY app/streamlit_app.py .
+COPY requirements.txt .
+
+# Instalar las dependencias de Python
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Configurar Xvfb y la variable de entorno DISPLAY
+ENV DISPLAY=:99
+
+# Exponer el puerto de Streamlit
+EXPOSE 8501
+
+# Comando de inicio usando Xvfb para Streamlit
+CMD ["xvfb-run", "--server-args='-screen 0 1024x768x24'", "streamlit", "run", "streamlit_app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+
