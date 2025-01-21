@@ -88,3 +88,4 @@ results.txt
 results.csv
 results/
 /data/test_videos
+/database/processed_videos
