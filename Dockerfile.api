@@ -15,6 +15,7 @@ WORKDIR /app
 # Copy application files
 COPY app/api.py .
 COPY requirements.txt .
+COPY database/detections.db /database/detections.db
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt

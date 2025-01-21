@@ -10,39 +10,30 @@ RUN apt-get update && apt-get install -y \
     xvfb \
     && rm -rf /var/lib/apt/lists/*
 
-# Set working directory
 WORKDIR /app
 
-# Copy application files first
+# Crear directorio de configuración de Streamlit
+RUN mkdir -p /root/.streamlit
+
+# Copy application files
 COPY app/streamlit_app.py .
 COPY requirements.txt .
+COPY ./data/dataset_yolo/data.yaml /data/dataset_yolo/data.yaml
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Configure Xvfb and Streamlit
+# Configure Xvfb
 ENV DISPLAY=:99
-ENV STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
 
-# Create directory for Streamlit config
-RUN mkdir -p /root/.streamlit
-
-# Create config.toml
-RUN echo '\
-[browser]\n\
-gatherUsageStats = false\n\
-' > /root/.streamlit/config.toml
-
-# Create startup script
+# Crear script de inicio modificado
 RUN echo '#!/bin/bash\n\
 rm -f /tmp/.X99-lock\n\
 Xvfb :99 -screen 0 1024x768x24 -ac +extension GLX +render -noreset &\n\
-exec streamlit run streamlit_app.py --server.port=8501 --server.address=0.0.0.0' > /app/start.sh \
+exec streamlit run streamlit_app.py --server.headless=true --server.port=8501 --server.address=0.0.0.0' > /app/start.sh \
     && chmod +x /app/start.sh
 
-# Expose Streamlit port
 EXPOSE 8501
 
-# Start command
 CMD ["/app/start.sh"]
 

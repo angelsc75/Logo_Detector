@@ -8,5 +8,6 @@ textColor="#262730"
 gatherUsageStats = false
 
 [server]
-enableXsrfProtection = false
+headless = true
 enableCORS = false
+enableXsrfProtection = false
