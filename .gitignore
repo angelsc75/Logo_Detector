@@ -68,16 +68,16 @@ dataset/
 !logo_branding_eye.png
 *.txt
 !requirements.txt
-*.pt
+
 *.pth
 *.weights
 *.h5
 
 # Directorios de modelos y checkpoints
 
-weights/
-runs/
-*.onnx
+# weights/
+# runs/
+# *.onnx
 
 # Archivos temporales de entrenamiento
 *.cache
