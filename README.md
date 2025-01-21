@@ -179,6 +179,9 @@ Si deseas contribuir al proyecto:
 - Realiza tus cambios
 - Envía un pull request
 
+#Presentación del proyecto
+https://www.canva.com/design/DAGc1d60Bc8/qvUJ5jf38_IBhfyuBs-aWQ/view?utm_content=DAGc1d60Bc8&utm_campaign=designshare&utm_medium=link2&utm_source=uniquelinks&utlId=h4750ae4094
+
 
 ## Contacto
 Para preguntas o sugerencias, por favor abre un issue en el repositorio.
