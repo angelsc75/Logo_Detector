@@ -56,7 +56,7 @@ def delete_detection(rowid):
             st.success(f"Detección {rowid} eliminada correctamente")
             # Forzar refresco de la página después de un pequeño delay
             time.sleep(0.5)  # Pequeña pausa para asegurar que la UI se actualice
-            st.experimental_rerun()
+            
             return True
         else:
             error_msg = f"Error al eliminar la detección. Status: {response.status_code}"
@@ -290,6 +290,13 @@ def process_video_logic(detector):
                 # Limpiar archivo temporal
                 os.unlink(video_path)
 
+
 if __name__ == "__main__":
+    if 'detector' not in st.session_state:
+        try:
+            st.session_state.detector = load_detector()
+            st.success("Detector inicializado correctamente")
+        except Exception as e:
+            st.error(f"Error al inicializar el detector: {str(e)}")
+            st.stop()
     main()
-    
