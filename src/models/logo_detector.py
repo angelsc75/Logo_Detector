@@ -35,7 +35,8 @@ class LogoDetector:
         self.db_path = os.path.join(database_dir, "detections.db")
         
         print(f"Ruta de la base de datos: {self.db_path}")
-        
+        # Limpiar base de datos y carpeta de imágenes al inicio
+                
         # Crear el directorio database si no existe
         if not os.path.exists(database_dir):
             os.makedirs(database_dir)
@@ -89,9 +90,10 @@ class LogoDetector:
             return False
         print("Estructura del dataset verificada correctamente")
         return True
-
+    
+            
     def setup_database(self):
-        """Configura la base de datos para guardar las detecciones"""
+        """Configura la base de datos para guardar las detecciones."""
         try:
             conn = sqlite3.connect(self.db_path)
             c = conn.cursor()
@@ -99,135 +101,189 @@ class LogoDetector:
             # Crear tabla para los análisis de videos
             c.execute('''CREATE TABLE IF NOT EXISTS video_analysis
                         (video_name TEXT,
-                         analysis_date TEXT,
-                         total_frames INTEGER,
-                         duration_seconds REAL,
-                         detection_summary TEXT)''')
+                        analysis_date TEXT,
+                        total_frames INTEGER,
+                        duration_seconds REAL,
+                        detection_summary TEXT)''')
             
-            # Crear tabla para las detecciones individuales
+            # Crear tabla detections con la estructura completa
             c.execute('''CREATE TABLE IF NOT EXISTS detections
                         (video_name TEXT,
-                         frame_number INTEGER,
-                         brand TEXT,
-                         confidence REAL,
-                         bbox TEXT,
-                         timestamp REAL)''')
+                        frame_number INTEGER,
+                        brand TEXT,
+                        confidence REAL,
+                        bbox TEXT,
+                        timestamp REAL,
+                        image_path TEXT)''')
+            
+            # Verificar la estructura
+            c.execute("PRAGMA table_info(detections)")
+            columns = {col[1] for col in c.fetchall()}
+            
+            required_columns = {
+                'video_name', 'frame_number', 'brand', 
+                'confidence', 'bbox', 'timestamp', 'image_path'
+            }
+            
+            if columns != required_columns:
+                print("La estructura de la tabla no es correcta. Ejecutando migración...")
+                conn.close()
+                
+                # Importar y ejecutar la migración
+                import db_migration
+                db_migration.migrate_database(self.db_path)
+                return
             
             conn.commit()
             print("Base de datos configurada correctamente")
             
-            # Verificar que las tablas se crearon correctamente
-            c.execute("SELECT name FROM sqlite_master WHERE type='table'")
-            tables = c.fetchall()
-            print(f"Tablas en la base de datos: {tables}")
-            
-        except Exception as e:
+        except sqlite3.OperationalError as e:
             print(f"Error configurando la base de datos: {str(e)}")
             raise
         finally:
-            if 'conn' in locals():
+            if conn:
                 conn.close()
+
 
     def process_video(self, video_path, conf_thresholds={'adidas': 0.50, 'nike': 0.50, 'puma': 0.50}):
         """Procesa un video y devuelve estadísticas de detección con visualización"""
         print(f"Procesando video: {video_path}")
         video_name = os.path.basename(video_path)
 
+        # Crear directorio para las imágenes si no existe
+        images_dir = os.path.join(os.path.dirname(self.db_path), "images")
+        os.makedirs(images_dir, exist_ok=True)
+        print(f"Directorio de imágenes: {images_dir}")
+
         try:
             cap = cv2.VideoCapture(video_path)
             if not cap.isOpened():
                 raise Exception("No se pudo abrir el video")
 
-            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            # Crear ventana para visualización
+            cv2.namedWindow('Detecciones', cv2.WINDOW_NORMAL)
+            
+            # Obtener propiedades del video para el video de salida
+            frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
             fps = cap.get(cv2.CAP_PROP_FPS)
-            duration = total_frames / fps
-
-            detections_count = {brand: 0 for brand in conf_thresholds.keys()}
-            frames_with_detections = {brand: 0 for brand in conf_thresholds.keys()}
-
-            conn = sqlite3.connect(self.db_path)
-            c = conn.cursor()
-
-            frame_number = 0
-            while cap.isOpened():
-                ret, frame = cap.read()
-                if not ret:
-                    break
-
-                timestamp = frame_number / fps
-
-                # Usar el valor mínimo de confianza como float para la predicción inicial
-                min_conf = float(min(conf_thresholds.values()))
-                results = self.model.predict(frame, conf=min_conf, verbose=False)[0]
-
-                frame_detections = {brand: False for brand in detections_count.keys()}
-
-                for box in results.boxes:
-                    cls = results.names[int(box.cls[0])]
-                    conf = float(box.conf[0])
-
-                    # Solo procesar las marcas seleccionadas
-                    if cls in conf_thresholds and conf >= conf_thresholds[cls]:
-                        xyxy = box.xyxy[0].cpu().numpy()
-
-                        try:
-                            c.execute('''INSERT INTO detections
-                                        (video_name, frame_number, brand, confidence, bbox, timestamp)
-                                        VALUES (?, ?, ?, ?, ?, ?)''',
-                                    (video_name, frame_number, cls, conf, json.dumps(xyxy.tolist()), timestamp))
-                            conn.commit()
-                            print(f"Detección guardada: Frame {frame_number}, Brand {cls}, Conf {conf}")
-                        except Exception as e:
-                            print(f"Error al guardar detección: {str(e)}")
-                            continue
-
-                        detections_count[cls] += 1
-                        frame_detections[cls] = True
-
-                        # Dibujar el bounding box en el frame
-                        cv2.rectangle(frame, (int(xyxy[0]), int(xyxy[1])), (int(xyxy[2]), int(xyxy[3])), (0, 255, 0), 2)
-                        label = f"{cls} {conf:.2f}"
-                        cv2.putText(frame, label, (int(xyxy[0]), int(xyxy[1] - 10)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-
-                # Actualizar frames_with_detections para cada marca
-                for brand in frame_detections:
-                    if frame_detections[brand]:
-                        frames_with_detections[brand] += 1
-
-                # Mostrar el frame con detecciones
-                cv2.imshow("Detections", frame)
-                if cv2.waitKey(1) & 0xFF == ord('q'):
-                    break
-
-                frame_number += 1
-                if frame_number % 100 == 0:
-                    print(f"Procesados {frame_number} frames...")
-
-            stats = {
-                'total_frames': total_frames,
-                'duration': duration,
-                'thresholds_used': conf_thresholds,
-                'detections': {
-                    brand: {
-                        'total_detections': count,
-                        'frames_with_detections': frames_with_detections[brand],
-                        'percentage_time': (frames_with_detections[brand] / total_frames) * 100
-                    }
-                    for brand, count in detections_count.items()
-                }
-            }
+            
+            # Configurar el video de salida
+            output_path = os.path.join(os.path.dirname(self.db_path), "processed_videos")
+            os.makedirs(output_path, exist_ok=True)
+            output_video = os.path.join(output_path, f"processed_{video_name}")
+            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+            out = cv2.VideoWriter(output_video, fourcc, fps, (frame_width, frame_height))
 
             try:
-                c.execute('''INSERT INTO video_analysis
-                            (video_name, analysis_date, total_frames, duration_seconds, detection_summary)
-                            VALUES (?, ?, ?, ?, ?)''',
-                        (video_name, datetime.now().isoformat(), total_frames, duration, json.dumps(stats)))
-                conn.commit()
-                print("Análisis de video guardado en la base de datos")
-            except Exception as e:
-                print(f"Error al guardar análisis de video: {str(e)}")
+                conn = sqlite3.connect(self.db_path)
+                c = conn.cursor()
+                
+                total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+                duration = total_frames / fps
+                
+                # Inicializar contadores
+                detections_count = {brand: 0 for brand in conf_thresholds.keys()}
+                frames_with_detections = {brand: 0 for brand in conf_thresholds.keys()}
 
-            return stats
+                frame_number = 0
+                while cap.isOpened():
+                    ret, frame = cap.read()
+                    if not ret:
+                        break
+
+                    timestamp = frame_number / fps
+                    frame_with_boxes = frame.copy()
+
+                    # Usar el valor mínimo de confianza para la predicción inicial
+                    min_conf = float(min(conf_thresholds.values()))
+                    results = self.model.predict(frame, conf=min_conf, verbose=False)[0]
+
+                    frame_detections = {brand: False for brand in detections_count.keys()}
+
+                    # Procesar cada detección
+                    for box in results.boxes:
+                        try:
+                            cls_idx = int(box.cls[0])
+                            cls = results.names[cls_idx]
+                            conf = float(box.conf[0])
+
+                            if cls not in conf_thresholds or conf < conf_thresholds[cls]:
+                                continue
+
+                            xyxy = box.xyxy[0].cpu().numpy()
+                            x1, y1, x2, y2 = map(int, xyxy)
+
+                            # Dibujar bounding box y etiqueta
+                            cv2.rectangle(frame_with_boxes, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                            label = f"{cls}: {conf:.2f}"
+                            cv2.putText(frame_with_boxes, label, (x1, y1-10), 
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+
+                            # Extraer y guardar la imagen del bounding box
+                            bbox_image = frame[y1:y2, x1:x2]
+                            if bbox_image.size > 0:
+                                image_filename = f"{video_name}_frame{frame_number}_brand{cls}_{conf:.2f}.jpg"
+                                image_path = os.path.join(images_dir, image_filename)
+                                cv2.imwrite(image_path, bbox_image)
+
+                            # Guardar detección en la base de datos
+                            c.execute('''INSERT INTO detections
+                                        (video_name, frame_number, brand, confidence, bbox, timestamp, image_path)
+                                        VALUES (?, ?, ?, ?, ?, ?, ?)''',
+                                    (video_name, frame_number, cls, conf, 
+                                    json.dumps(xyxy.tolist()), timestamp, image_filename))
+                            conn.commit()
+
+                            # Actualizar contadores
+                            detections_count[cls] += 1
+                            frame_detections[cls] = True
+
+                        except Exception as e:
+                            print(f"Error procesando detección: {str(e)}")
+                            continue
+
+                    # Actualizar frames_with_detections
+                    for brand, detected in frame_detections.items():
+                        if detected:
+                            frames_with_detections[brand] += 1
+
+                    # Mostrar el frame con las detecciones
+                    cv2.imshow('Detecciones', frame_with_boxes)
+                    out.write(frame_with_boxes)
+
+                    # Permitir salir con 'q'
+                    if cv2.waitKey(1) & 0xFF == ord('q'):
+                        break
+
+                    frame_number += 1
+                    if frame_number % 100 == 0:
+                        print(f"Procesados {frame_number}/{total_frames} frames...")
+
+                stats = {
+                    'total_frames': total_frames,
+                    'duration': duration,
+                    'thresholds_used': conf_thresholds,
+                    'detections': {
+                        brand: {
+                            'total_detections': count,
+                            'frames_with_detections': frames_with_detections[brand],
+                            'percentage_time': (frames_with_detections[brand] / total_frames) * 100
+                        }
+                        for brand, count in detections_count.items()
+                    }
+                }
+
+                return stats
+
+            except Exception as e:
+                print(f"Error procesando el video: {str(e)}")
+                return None
+            finally:
+                if 'conn' in locals():
+                    conn.close()
+                if 'out' in locals():
+                    out.release()
 
         except Exception as e:
             print(f"Error procesando el video: {str(e)}")
@@ -235,8 +291,6 @@ class LogoDetector:
         finally:
             if 'cap' in locals():
                 cap.release()
-            if 'conn' in locals():
-                conn.close()
             cv2.destroyAllWindows()
 
     def generate_report(self, stats):

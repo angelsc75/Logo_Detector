@@ -7,6 +7,10 @@ import plotly.express as px
 import pandas as pd
 import sqlite3
 from datetime import datetime
+import requests
+from PIL import Image
+import logging
+import time
 
 # Añadir el directorio src al path de Python
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -14,9 +18,124 @@ project_root = os.path.dirname(current_dir)
 src_path = os.path.join(project_root, 'src')
 sys.path.append(src_path)
 
+# Configurar logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
 # Importar LogoDetector desde models
 from models.logo_detector import LogoDetector
+API_URL = "http://127.0.0.1:8000"  # Asegúrate de que FastAPI esté corriendo en esta dirección
 
+def search_detections(video_name=None, brand=None):
+    """Llama a la API para buscar detecciones."""
+    params = {}
+    if video_name:
+        params["video_name"] = video_name
+    if brand:
+        params["brand"] = brand
+    response = requests.get(f"{API_URL}/detections/", params=params)
+    if response.status_code == 200:
+        return response.json()
+    else:
+        st.error("Error buscando detecciones")
+        return []
+
+def delete_detection(rowid):
+    """Llama a la API para eliminar una detección."""
+    try:
+        # Agregar logging para debug
+        logger.info(f"Intentando eliminar detección {rowid}")
+        
+        response = requests.delete(f"{API_URL}/detections/{rowid}")
+        
+        # Log de la respuesta
+        logger.info(f"Respuesta del servidor: Status={response.status_code}, Content={response.text}")
+        
+        if response.status_code == 200:
+            st.success(f"Detección {rowid} eliminada correctamente")
+            # Forzar refresco de la página después de un pequeño delay
+            time.sleep(0.5)  # Pequeña pausa para asegurar que la UI se actualice
+            st.experimental_rerun()
+            return True
+        else:
+            error_msg = f"Error al eliminar la detección. Status: {response.status_code}"
+            if response.text:
+                try:
+                    error_msg += f". Detalle: {response.json()['detail']}"
+                except:
+                    error_msg += f". Respuesta: {response.text}"
+            logger.error(error_msg)
+            st.error(error_msg)
+            return False
+            
+    except requests.exceptions.RequestException as e:
+        error_msg = f"Error de conexión al intentar eliminar la detección: {str(e)}"
+        logger.error(error_msg)
+        st.error(error_msg)
+        return False
+
+def manage_detections():
+    st.header("Gestión de Detecciones")
+
+    # Formulario de búsqueda
+    video_name = st.text_input("Nombre del video (opcional)")
+    brand = st.selectbox("Marca", ["", "adidas", "nike", "puma"], index=0)
+    
+    search_clicked = st.button("Buscar detecciones")
+    
+    if search_clicked:
+        try:
+            detections = search_detections(video_name, brand)
+            if detections:
+                for detection in detections:
+                    with st.container():
+                        col1, col2 = st.columns([3, 1])
+                        with col1:
+                            st.markdown(f"""
+                                **ID:** {detection['rowid']}  
+                                **Marca:** {detection['brand']}  
+                                **Frame:** {detection['frame_number']}  
+                                **Confianza:** {detection['confidence']:.2f}
+                            """)
+                            
+                            # Mejorar el manejo de imágenes
+                            if detection['image_path']:
+                                try:
+                                    # Construir la ruta absoluta correctamente
+                                    base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                                    image_path = os.path.join(base_path, "database", "images", 
+                                                            os.path.basename(detection['image_path']))
+                                    
+                                    logger.info(f"Intentando cargar imagen desde: {image_path}")
+                                    
+                                    if os.path.exists(image_path):
+                                        image = Image.open(image_path)
+                                        st.image(image, 
+                                               caption=f"Detección de {detection['brand']} (Frame {detection['frame_number']})",
+                                               use_column_width=True)
+                                        image.close()  # Cerrar la imagen después de mostrarla
+                                    else:
+                                        logger.warning(f"Archivo de imagen no encontrado: {image_path}")
+                                        st.warning("Imagen no disponible")
+                                except Exception as e:
+                                    logger.error(f"Error al cargar la imagen: {str(e)}")
+                                    st.error("Error al cargar la imagen")
+                        
+                        with col2:
+                            if st.button("🗑️ Eliminar", key=f"delete_{detection['rowid']}"):
+                                if delete_detection(detection['rowid']):
+                                    st.success(f"Detección {detection['rowid']} eliminada")
+                                    time.sleep(0.5)
+                                    st.experimental_rerun()
+                        
+                        st.markdown("---")
+            else:
+                st.info("No se encontraron detecciones.")
+        except Exception as e:
+            logger.error(f"Error en manage_detections: {str(e)}")
+            st.error(f"Error inesperado: {str(e)}")
+            
 def load_detector():
     """Inicializa y carga el detector de logos"""
     data_yaml = os.path.join(project_root, "data", "dataset_yolo", "data.yaml")
@@ -158,3 +277,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    manage_detections()
