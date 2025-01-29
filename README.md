@@ -1,4 +1,5 @@
 # Detección de Marcas en Videos e Imágenes
+Nota: Este proyecto está realizado dentro del bootcamp de IA de Factoría F5, que tuvo lugar entre mayo de 2024 y marzo de 2025. Es un proyecto hecho en pareja que corresponde a la parte de Computer Vision. 
 
 Este proyecto implementa un sistema de detección de marcas en videos e imágenes, con conexión a una base de datos y una API desarrollada con FastAPI. Además, incluye una interfaz interactiva basada en Streamlit para gestionar y visualizar los resultados de detección.
 
@@ -179,9 +180,9 @@ Si deseas contribuir al proyecto:
 - Realiza tus cambios
 - Envía un pull request
 
-#Presentación del proyecto
-https://www.canva.com/design/DAGc1d60Bc8/qvUJ5jf38_IBhfyuBs-aWQ/view?utm_content=DAGc1d60Bc8&utm_campaign=designshare&utm_medium=link2&utm_source=uniquelinks&utlId=h4750ae4094
+## Presentación comercial del proyecto
 
+[Ver presentación del proyecto (PDF)](assets/Proyecto Computer Vision.pdf)
 
 ## Contacto
 Para preguntas o sugerencias, por favor abre un issue en el repositorio.
